@@ -24,6 +24,10 @@ import java.util.Locale;
 public class HomeActivity extends AppCompatActivity implements View.OnClickListener
 {
 
+    public static final String DATA_FORMAT = "yyyy-MM-dd HH:mm";
+    public static final long HOUR = 60 * 60 * 1000;
+    public static final long SECOND = 1000;
+
     private Button mPunchBtn;
     private TextView mWorkTimeTv;
     private TextView mOffTimeTv;
@@ -31,6 +35,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     private String mOffTime;
     private MyDatabaseHelper mHelper;
     private SQLiteDatabase mDatabase;
+    private Intent mServiceIntent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -97,9 +102,6 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    public static final String DATA_FORMAT = "yyyy-MM-dd HH:mm";
-    public static final long HOUR = 60 * 60 * 1000;
-
     //打卡
     private void punch()
     {
@@ -130,6 +132,10 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         insert(workTime, mOffTime);
         //下班之前禁止打卡
         mPunchBtn.setEnabled(false);
+
+        mServiceIntent = new Intent(this, AlarmService.class);
+        startService(mServiceIntent);
+
         startAlarm();
     }
 
@@ -142,7 +148,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         mDatabase.insert("Attendance", null, values);
     }
 
-    //开启定时提醒任务
+    //开启定时语音提醒任务
     private void startAlarm()
     {
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
@@ -184,6 +190,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     {
         super.onDestroy();
         mTextToSpeech.shutdown();
+        stopService(mServiceIntent);
     }
 
     @Override
