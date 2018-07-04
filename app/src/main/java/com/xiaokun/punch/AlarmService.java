@@ -7,14 +7,12 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.SystemClock;
 import android.support.v4.app.NotificationCompat;
-import android.text.TextUtils;
 
 /**
  * 前台服务,开启震动通知。防止锁频条件下,语音调不起来
@@ -49,7 +47,8 @@ public class AlarmService extends Service
 
         //启动定时通知任务,提前一分钟
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * HOUR - 60 * SECOND;
+//        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * HOUR - 60 * SECOND;
+        long triggerAtTime = SystemClock.elapsedRealtime() + SECOND;
 
         Intent intent = new Intent(this, AlarmService.class);
         intent.putExtra(KEY_ALARM_INTENT, true);

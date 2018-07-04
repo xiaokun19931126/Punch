@@ -2,12 +2,18 @@ package com.xiaokun.punch;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
 import android.support.v7.app.AppCompatActivity;
@@ -36,6 +42,9 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     private MyDatabaseHelper mHelper;
     private SQLiteDatabase mDatabase;
     private Intent mServiceIntent;
+    private IntentFilter mIntentFilter;
+    private NetworkChangeReceiver mNetworkChangeReceiver;
+    private Handler mHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -44,6 +53,8 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         setContentView(R.layout.activity_home);
 
         initView();
+
+        initReceiver();
 
         Toast.makeText(this, "onCreate", Toast.LENGTH_SHORT).show();
     }
@@ -78,6 +89,15 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         mHelper = new MyDatabaseHelper(this, "APPData.db", null, 1);
         mDatabase = mHelper.getWritableDatabase();
         mDatabase.execSQL(MyDatabaseHelper.CREATE_TABLE);
+    }
+
+    private void initReceiver()
+    {
+        mIntentFilter = new IntentFilter();
+        mIntentFilter.addAction("android.net.conn.CONNECTIVITY_CHANGE");
+
+        mNetworkChangeReceiver = new NetworkChangeReceiver();
+        registerReceiver(mNetworkChangeReceiver, mIntentFilter);
     }
 
     private void initListener(View... views)
@@ -152,7 +172,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     private void startAlarm()
     {
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * HOUR;
+        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * SECOND;
 
         Intent intent = new Intent(this, HomeActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, 0);
@@ -191,6 +211,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         super.onDestroy();
         mTextToSpeech.shutdown();
         stopService(mServiceIntent);
+        unregisterReceiver(mNetworkChangeReceiver);
     }
 
     @Override
@@ -202,4 +223,45 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         homeIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(homeIntent);
     }
+
+    class NetworkChangeReceiver extends BroadcastReceiver
+    {
+
+        @Override
+        public void onReceive(Context context, Intent intent)
+        {
+            int hours = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            int minutes = Calendar.getInstance().get(Calendar.MINUTE);
+            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo info = connectivityManager.getActiveNetworkInfo();
+            if (info == null || !info.isAvailable())
+            {
+                return;
+            }
+            String extraInfo = info.getExtraInfo();
+            switch (info.getType())
+            {
+                case ConnectivityManager.TYPE_WIFI:
+                    if (!extraInfo.equals("Navinfo_Guest"))
+                    {
+                        return;
+                    }
+                    //由移动网络转变成wifi
+                    if ((hours == 8 && minutes > 30) || (hours == 9 && minutes < 30))
+                    {
+                        //延迟2分钟打卡
+                        mHandler.postDelayed(new Runnable()
+                        {
+                            @Override
+                            public void run()
+                            {
+                                punch();
+                            }
+                        }, 2 * 60 * SECOND);
+                    }
+                    break;
+            }
+        }
+    }
+
 }
