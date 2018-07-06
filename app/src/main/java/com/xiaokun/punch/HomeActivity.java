@@ -1,6 +1,8 @@
 package com.xiaokun.punch;
 
 import android.app.AlarmManager;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ContentValues;
@@ -45,6 +47,8 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     private IntentFilter mIntentFilter;
     private NetworkChangeReceiver mNetworkChangeReceiver;
     private Handler mHandler = new Handler(Looper.getMainLooper());
+    public static final String CHANNEL_ID = "off_work";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -52,11 +56,26 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
+        initNotificationChannel();
+
         initView();
 
         initReceiver();
 
         Toast.makeText(this, "onCreate", Toast.LENGTH_SHORT).show();
+    }
+
+    private void initNotificationChannel()
+    {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+        {
+            String channelName = "通知下班";
+            int importance = NotificationManager.IMPORTANCE_HIGH;
+
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, channelName, importance);
+            NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            notificationManager.createNotificationChannel(channel);
+        }
     }
 
     private void initView()
@@ -125,6 +144,11 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     //打卡
     private void punch()
     {
+        if (!mPunchBtn.isEnabled())
+        {
+            return;
+        }
+
         long currentTimeMillis = System.currentTimeMillis();
         SimpleDateFormat dateFormat = new SimpleDateFormat(DATA_FORMAT);
         String workFormat = dateFormat.format(new Date(currentTimeMillis));
@@ -134,11 +158,11 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         //先注释
         int hours = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
         int minutes = Calendar.getInstance().get(Calendar.MINUTE);
-        if (hours > 10 || (hours == 9 && minutes >= 30))
-        {
-            Toast.makeText(this, "调个休吧,已经迟到了", Toast.LENGTH_SHORT).show();
-            return;
-        }
+//        if (hours > 10 || (hours == 9 && minutes >= 30))
+//        {
+//            Toast.makeText(this, "调个休吧,已经迟到了", Toast.LENGTH_SHORT).show();
+//            return;
+//        }
 
         String workTime = "上班时间：" + workFormat;
         //上班打卡时间加上9小时等于下班时间
@@ -150,6 +174,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         mTextToSpeech.speak(mOffTime, TextToSpeech.QUEUE_FLUSH, null);
 
         insert(workTime, mOffTime);
+
         //下班之前禁止打卡
         mPunchBtn.setEnabled(false);
 
@@ -172,7 +197,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     private void startAlarm()
     {
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * SECOND;
+        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * HOUR;
 
         Intent intent = new Intent(this, HomeActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, 0);
@@ -232,8 +257,10 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         {
             int hours = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
             int minutes = Calendar.getInstance().get(Calendar.MINUTE);
-            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context
+                    .CONNECTIVITY_SERVICE);
             NetworkInfo info = connectivityManager.getActiveNetworkInfo();
+            Toast.makeText(HomeActivity.this, "网络变化了", Toast.LENGTH_SHORT).show();
             if (info == null || !info.isAvailable())
             {
                 return;
@@ -242,13 +269,14 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
             switch (info.getType())
             {
                 case ConnectivityManager.TYPE_WIFI:
-                    if (!extraInfo.equals("Navinfo_Guest"))
+                    if (!extraInfo.equals("\"Navinfo_Guest\""))
                     {
                         return;
                     }
                     //由移动网络转变成wifi
                     if ((hours == 8 && minutes > 30) || (hours == 9 && minutes < 30))
                     {
+                        Toast.makeText(HomeActivity.this, "两分钟后执行打卡", Toast.LENGTH_SHORT).show();
                         //延迟2分钟打卡
                         mHandler.postDelayed(new Runnable()
                         {

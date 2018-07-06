@@ -22,6 +22,8 @@ public class AlarmService extends Service
     public static final long HOUR = 60 * 60 * 1000;
     public static final long SECOND = 1000;
     private static final String KEY_ALARM_INTENT = "ALARM_INTENT";
+    public static final String FOREGROUND = "foreground_service";
+    public static final String MINUTE_NOTICE = "MINUTE_NOTICE";
 
     public AlarmService()
     {
@@ -38,7 +40,7 @@ public class AlarmService extends Service
     {
         super.onCreate();
         //开启前台服务,保证服务不被杀死
-        Notification notification = new NotificationCompat.Builder(this, null)
+        Notification notification = new NotificationCompat.Builder(this, HomeActivity.CHANNEL_ID)
                 .setContentTitle("下班提醒前台服务")
                 .setSmallIcon(R.drawable.ic_launcher_background)
                 .setLargeIcon(BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher_background))
@@ -47,8 +49,7 @@ public class AlarmService extends Service
 
         //启动定时通知任务,提前一分钟
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-//        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * HOUR - 60 * SECOND;
-        long triggerAtTime = SystemClock.elapsedRealtime() + SECOND;
+        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * HOUR - 60 * SECOND;
 
         Intent intent = new Intent(this, AlarmService.class);
         intent.putExtra(KEY_ALARM_INTENT, true);
@@ -71,7 +72,8 @@ public class AlarmService extends Service
             NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
             //开启通知,带有振动通知
-            Notification notification = new NotificationCompat.Builder(this, null).setContentText("还有一分钟就下班啦")
+            Notification notification = new NotificationCompat.Builder(this, HomeActivity.CHANNEL_ID)
+                    .setContentText("还有一分钟就下班啦")
                     .setSmallIcon(R.drawable.ic_launcher_background)
                     .setLargeIcon(BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher_background))
                     .setWhen(System.currentTimeMillis())
