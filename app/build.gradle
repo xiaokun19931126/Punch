@@ -28,4 +28,15 @@ dependencies {
 
     //数据库调试
     debugImplementation 'com.amitshekhar.android:debug-db:1.0.1'
+
+    implementation 'android.arch.lifecycle:extensions:1.1.1'
+    implementation 'android.arch.persistence.room:runtime:1.1.1'
+    annotationProcessor 'android.arch.lifecycle:compiler:1.1.1'
+    annotationProcessor 'android.arch.persistence.room:compiler:1.1.1'
+
+    //调试工具
+    debugImplementation 'com.github.whataa:pandora:v1.0.1'
+    releaseImplementation 'com.github.whataa:pandora-no-op:v1.0.1'
+
+    implementation "android.arch.work:work-runtime:1.0.0-alpha04"
 }

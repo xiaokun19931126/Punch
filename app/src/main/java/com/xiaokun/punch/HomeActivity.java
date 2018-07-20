@@ -4,6 +4,8 @@ import android.app.AlarmManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.arch.lifecycle.Observer;
+import android.arch.lifecycle.ViewModelProviders;
 import android.content.BroadcastReceiver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -18,7 +20,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
+import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -27,7 +31,10 @@ import android.widget.Toast;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+
+import androidx.work.WorkStatus;
 
 public class HomeActivity extends AppCompatActivity implements View.OnClickListener
 {
@@ -35,6 +42,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     public static final String DATA_FORMAT = "yyyy-MM-dd HH:mm";
     public static final long HOUR = 60 * 60 * 1000;
     public static final long SECOND = 1000;
+    private static final String TAG = "HomeActivity";
 
     private Button mPunchBtn;
     private TextView mWorkTimeTv;
@@ -48,13 +56,57 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     private NetworkChangeReceiver mNetworkChangeReceiver;
     private Handler mHandler = new Handler(Looper.getMainLooper());
     public static final String CHANNEL_ID = "off_work";
-
+    private HomeViewModel mHomeViewModel;
+    private Button mButton;
+    private Button mButton2;
+    private Button mButton3;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
+
+        mHomeViewModel = ViewModelProviders.of(this).get(HomeViewModel.class);
+        mHomeViewModel.createDb();
+
+        mHomeViewModel.getPunchBooks().observe(this, new Observer<List<PunchBook>>()
+        {
+            @Override
+            public void onChanged(@Nullable List<PunchBook> punchBooks)
+            {
+                Toast.makeText(App.getApplication(), punchBooks.get(0).workTime, Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        mHomeViewModel.getOutputStatus().observe(this, new Observer<List<WorkStatus>>()
+        {
+            @Override
+            public void onChanged(@Nullable List<WorkStatus> workStatuses)
+            {
+                if (workStatuses == null || workStatuses.isEmpty())
+                {
+                    return;
+                }
+                WorkStatus workStatus = workStatuses.get(0);
+                boolean finished = workStatus.getState().isFinished();
+                if (!finished)
+                {
+                    Log.e(TAG, "(" + TAG + ".java:" + Thread.currentThread().getStackTrace()[2].getLineNumber() + ")" + "任务执行中");
+                } else
+                {
+//                    Toast.makeText(getApplicationContext(), "提醒日程", Toast.LENGTH_SHORT).show();
+//                    Intent intent = new Intent(HomeActivity.this, HomeActivity.class);
+//                    startActivity(intent);
+                }
+            }
+        });
+
+        long l = App.mPref.get(VoiceWorker.TIME, 0);
+        if (l > 0)
+        {
+            mHomeViewModel.executeVoice();
+        }
 
         initNotificationChannel();
 
@@ -83,8 +135,11 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
         mPunchBtn = findViewById(R.id.punch_btn);
         mWorkTimeTv = findViewById(R.id.work_time_tv);
         mOffTimeTv = findViewById(R.id.off_time_tv);
+        mButton = findViewById(R.id.button);
+        mButton2 = findViewById(R.id.button2);
+        mButton3 = findViewById(R.id.button3);
 
-        initListener(mPunchBtn);
+        initListener(mPunchBtn, mButton, mButton2, mButton3);
 
         //文字转语音
         mTextToSpeech = new TextToSpeech(this, new TextToSpeech.OnInitListener()
@@ -99,7 +154,8 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
                 }
             }
         });
-        initDatabase();
+//        initDatabase();
+
     }
 
     //创建数据库,并创建考勤表
@@ -135,6 +191,19 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.punch_btn:
                 //打卡
                 punch();
+                break;
+            case R.id.button:
+                long currentTimeMillis = System.currentTimeMillis();
+                SimpleDateFormat dateFormat = new SimpleDateFormat(DATA_FORMAT);
+                String workFormat = dateFormat.format(new Date(currentTimeMillis));
+                String offFormat = dateFormat.format(new Date(currentTimeMillis + 9 * HOUR));
+                mHomeViewModel.addPunch(workFormat, offFormat);
+                break;
+            case R.id.button2:
+                mHomeViewModel.queryPunchBook();
+                break;
+            case R.id.button3:
+                mHomeViewModel.executeVoice();
                 break;
             default:
                 break;
@@ -173,7 +242,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
 
         mTextToSpeech.speak(mOffTime, TextToSpeech.QUEUE_FLUSH, null);
 
-        insert(workTime, mOffTime);
+//        insert(workTime, mOffTime);
 
         //下班之前禁止打卡
         mPunchBtn.setEnabled(false);
@@ -197,7 +266,7 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     private void startAlarm()
     {
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        long triggerAtTime = SystemClock.elapsedRealtime() + 9 * HOUR;
+        long triggerAtTime = SystemClock.elapsedRealtime() + 15 * SECOND;
 
         Intent intent = new Intent(this, HomeActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, 0);
@@ -215,6 +284,8 @@ public class HomeActivity extends AppCompatActivity implements View.OnClickListe
     protected void onNewIntent(Intent intent)
     {
         super.onNewIntent(intent);
+        App.mPref.clear();
+        Log.e(TAG, "(" + TAG + ".java:" + Thread.currentThread().getStackTrace()[2].getLineNumber() + ")" + "重置");
         Toast.makeText(this, "onNewIntent", Toast.LENGTH_SHORT).show();
         if (intent.getAction() == null)
         {
